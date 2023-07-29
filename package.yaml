@@ -1,0 +1,49 @@
+name: monkey-haskell
+version: 1.0.0.0
+github: 'tweag/haskell-stack-nix-example'
+author: 'tweag'
+maintainer: 'tweag'
+copyright: 'MIT'
+
+description: Valid and invalid Stack + Nix integration examples
+
+dependencies:
+  - base
+  - text
+  - directory
+  - optparse-applicative
+  - raw-strings-qq
+
+library:
+  source-dirs: src
+
+executables:
+  # The executable name for the cli
+  monkey-haskell:
+    # The main function is in cli.hs
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+      - base
+      - optparse-applicative
+      - monkey-haskell
+    ghc-options:
+      - -Wall
+      - -Wextra
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-qg
+
+tests:
+  spec:
+    main: Main.hs
+    source-dirs:
+      - test
+    dependencies:
+      - sydtest
+      - monkey-haskell
+      - raw-strings-qq
+    build-tools: sydtest-discover
+    ghc-options: -threaded
+      -rtsopts
+      -with-rtsopts=-N

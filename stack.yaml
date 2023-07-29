@@ -1,0 +1,8 @@
+resolver: lts-18.28
+packages:
+  - .
+nix:
+  enable: true
+  pure: false
+  # See https://docs.haskellstack.org/en/stable/nix_integration/#using-a-custom-shellnix-file
+  shell-file: nix/stack-integration.nix
