@@ -10,6 +10,7 @@ import Debug.Trace (trace)
 import GHC.IO.Exception (IOErrorType (UnsatisfiedConstraints))
 import Lexer (isIdent)
 import Lexer hiding (Unexpected, next, peek, satisfy)
+import Options.Applicative.Help (vsepChunks)
 import qualified Token as T
 
 data ParseError = Unexpected String
@@ -141,16 +142,20 @@ boolP =
     isBool _ = False
 
 bangP :: Parser Expression
-bangP = do
-  op <- match T.Bang
-  right <- exprP Prefix
-  return (Ast.Prefix T.Bang right)
+bangP = Ast.Prefix <$> match T.Bang <*> exprP Prefix
+
+-- bangP = do
+--   op <- match T.Bang
+--   right <- exprP Prefix
+--   return (Ast.Prefix T.Bang right)
 
 minusP :: Parser Expression
-minusP = do
-  op <- match T.Minus
-  right <- exprP Prefix
-  return (Ast.Prefix T.Minus right)
+minusP = Ast.Prefix <$> match T.Minus <*> exprP Prefix
+
+-- minusP = do
+--   op <- match T.Minus
+--   right <- exprP Prefix
+--   return (Ast.Prefix T.Minus right)
 
 parseGroupedP :: Parser Expression
 parseGroupedP = match T.LeftParen *> exprP Lowest <* match T.RightParen
@@ -162,27 +167,39 @@ blockP :: Parser [Ast.Statement]
 blockP = match T.LeftBrace *> many next <* match T.RightBrace
 
 elseP :: Parser (Maybe Ast.Block)
-elseP =
-  ( do
-      match T.Else
-      Just <$> Ast.Block <$> blockP
-  )
-    <|> return Nothing
+elseP = (match T.Else *> (Just <$> Ast.Block <$> blockP)) <|> return (Nothing)
+
+-- elseP =
+--   ( do
+--       match T.Else
+--       Just <$> Ast.Block <$> blockP
+--   )
+--     <|> return Nothing
+
+condP :: Parser Expression
+condP = match T.If *> match T.LeftParen *> exprP Lowest <* match T.RightParen
 
 ifP :: Parser Expression
-ifP = do
-  cond <- match T.If *> match T.LeftParen *> exprP Lowest <* match T.RightParen
-  consequence <- blockP
-  Ast.If cond (Ast.Block consequence) <$> elseP
+ifP = Ast.If <$> condP <*> (Ast.Block <$> blockP) <*> elseP
+
+-- ifP = do
+--   cond <- match T.If *> match T.LeftParen *> exprP Lowest <* match T.RightParen
+--   consequence <- blockP
+--   Ast.If cond (Ast.Block consequence) <$> elseP
+
+paramsP :: Parser [Ast.Identifier]
+paramsP = match T.Function *> match T.LeftParen *> parseParameters <* match T.RightParen
 
 functionP :: Parser Expression
-functionP = do
-  match T.Function
-  match T.LeftParen
-  params <- parseParameters
-  match T.RightParen
-  block <- blockP
-  return (Ast.FunctionLiteral params (Ast.Block block))
+functionP = Ast.FunctionLiteral <$> paramsP <*> (Ast.Block <$> blockP)
+
+-- functionP = do
+--   match T.Function
+--   match T.LeftParen
+--   params <- parseParameters
+--   match T.RightParen
+--   block <- blockP
+-- return (Ast.FunctionLiteral params (Ast.Block block))
 
 sepBy ::
   Parser a -> -- Parser for the separators
@@ -193,12 +210,17 @@ sepBy sep element = (:) <$> element <*> many (sep *> element) <|> pure []
 parseParameters :: Parser [Ast.Identifier]
 parseParameters = sepBy (match T.Comma) identP
 
+argsP :: Parser [Ast.Expression]
+argsP = match T.LeftParen *> sepBy (match T.Comma) (exprP Lowest)
+
 callP :: Expression -> Parser Expression
-callP fn = do
-  match T.LeftParen
-  args <- sepBy (match T.Comma) (exprP Lowest)
-  trace ("args: " ++ (show args)) match T.RightParen
-  return (Ast.Call fn args)
+callP fn = Ast.Call fn <$> argsP
+
+-- callP fn = do
+--   match T.LeftParen
+--   args <- sepBy (match T.Comma) (exprP Lowest)
+--   trace ("args: " ++ (show args)) match T.RightParen
+--   return (Ast.Call fn args)
 
 prefixP :: Precedence -> Parser Expression
 prefixP precedence =
@@ -266,8 +288,6 @@ expressionStatementP = Ast.ExpressionStatement <$> exprP Lowest <* chomp T.Semic
 
 next :: Parser Ast.Statement
 next = letP <|> returnP <|> expressionStatementP
-
---Ast.Let <$ {name ="test", value = match Token.Let}
 
 parse :: T.Tokens -> Ast.Program
 parse tokens = case runParser parse' tokens of
